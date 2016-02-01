@@ -1,19 +1,31 @@
+/* global define */
 !function () {
 	var globe = this,
 		fn = {},
 		DOC = this.document,
-		HTML = DOC.documentElement,
-		HEAD = DOC.head,
-		isIE = !!window.VBArray,
-		W3C = !!window.dispatchEvent,
+		HTML = DOC && DOC.documentElement,
+		HEAD = DOC && DOC.head,
+		isIE = !!globe.VBArray,
+		isNode = DOC === undefined,
+		W3C = !!globe.dispatchEvent,
 		_lp = globe.lp,
-		moduleClass = 'LP' + (new Date - 0),
+		moduleClass = 'LP' + (new Date() - 0),
 		arrProto = Array.prototype,	//Original static funcs of Array class
-		objProto = Object.prototype;//Original static funcs of Object class
-	function lp_libs() {
+		objProto = Object.prototype,//Original static funcs of Object class
+        protoProps = ['toString', 'valueOf', 'constructor', 'hasOwnProperty', 'isPrototypeOf', 'propertyIsEnumerable', 'toLocaleString'];
+	function LP_libs() {
 		this.version = '0.0.1';
 	}
 	function noop() {}
+
+    if (!Function.prototype.bind){//实现ECMASCRIPT5标准BIND
+        Function.prototype.bind = function(_this, _args){
+            var args = arrProto.slice.call(arguments, 1), _fn = this;
+            return function(__args){
+                return _fn.apply(_this, arrProto.concat.call(args, __args));
+            }
+        }
+    }
 
 	/*
 	判断是否是类数组对象,若为true 把arg格式化成Array以继承Array方法
@@ -64,6 +76,9 @@
 	}
 	fn.range = range;
 	
+	/**
+	 * 返回左上角坐标 {top,left}
+	 */
 	function getElementPosition(elm){
 		var curElm = elm,
 			position = {top:elm.offsetTop,left:elm.offsetLeft};
@@ -103,12 +118,12 @@
 	//只克隆自有属性，继承的一概忽略。
 	/*
 	@param deep 深度克隆
-	@resourceArr 要复制的对象数组
 	@target 原对象
+	@resourceArr 要复制的对象数组
 	*/
 	function extend(_deep, _tar, _arr){
 		var args = arguments,
-			target, deep, resourceArr, l = 0, field, props, clone;
+			target, deep, resourceArr, l = 0, field, props, clone; //ie_flg = true;
 		if (args.length === 1 && typeof args === 'object'){
 			args = args[0];
 			target = args.target || {};
@@ -127,26 +142,40 @@
 			target = args[l++] || {};
 			resourceArr = arrProto.slice.call(args,l,args.length) || [];
 		}
-		resourceArr.forEach(function(d){
-		 	props = Object.getOwnPropertyNames(d);
-			for (field in props){
-				field = props[field];
-				clone = d[field];
-				if (clone === target){//循环引用检测
-					continue;
-				}
-				else if (typeof clone === 'object' || typeof clone === 'function')
-				{
-					if (deep){
-						target[field] = fn.extend(deep, {}, clone);	
-					}else{
-						target[field] = clone;
-					}
-				}else{
-					Object.defineProperty(target, field, Object.getOwnPropertyDescriptor(d, field));
-				}
-			}
-		});
+        /*//IE BUG: 当对象包含同名不可枚举的属性时，将跳过该属性;
+        
+        for (var p in {toString: null}){
+            //没跳过说明游览器处理正常
+            ie_flg = false;
+        }*/
+        resourceArr.forEach(function(d){
+            props = Object.getOwnPropertyNames(d);
+            for (field in props){
+                field = props[field];
+                clone = d[field];
+                if (clone === target){//循环引用检测
+                    continue;
+                }
+                else if (typeof clone === 'object' || typeof clone === 'function')
+                {
+                    if (deep){
+                        target[field] = extend(deep, {}, clone);	
+                    }else{
+                        target[field] = clone;
+                    }
+                }else{
+                    Object.defineProperty(target, field, Object.getOwnPropertyDescriptor(d, field));
+                }
+            }
+        });
+        /*
+        if (ie_flg){
+            resourceArr.forEach(function(d){
+                for (var idx = 0; field = protoProps[idx++];){
+                    if (d.hasOwnProperty(field)) target[field] = d[field];
+                }
+            });
+        }*/
 		return target;
 	}
 	fn.extend = extend;
@@ -194,7 +223,10 @@
 			_fn();
 		}
 	}
-	function fireReady(){
+    /**
+	 * 执行docready回调
+     */
+	var fireReady = function (){
 		for(var i=0, _fn; _fn = readyList[i++];){
 			_fn();
 		}
@@ -210,14 +242,14 @@
 		}
 	}
 
-	var ready = W3C?"DOMContentLoaded":"readystatechange", readyFn;
+	var ready = W3C?"DOMContentLoaded":"readystatechange";
 
-	if (!DOC.readyState){		//兼容firefox3.6之前版本用
+	if (DOC && !DOC.readyState){		//兼容firefox3.6之前版本用
 		var readyState = DOC.readyState = DOC.body ? "complete":"loading";	
 	}
-	if (DOC.readyState === 'complete'){		//DOM已生成
+	if (DOC && DOC.readyState === 'complete'){		//DOM已生成
 		fireReady();
-	} else {//DOM未生成则绑定监听(DOMContentLoaded或readystatechange)事件
+	} else if (DOC){//DOM未生成则绑定监听(DOMContentLoaded或readystatechange)事件
 		DOC.addEventListener(ready, function(){
 			if (W3C || DOC.readyState === 'complete'){	//若支持DOMContentLoaded或DOM已生成直接执行脚本
 				fireReady();
@@ -312,7 +344,7 @@
 		function _events(__id, __fn, __me){
 			this.listeners = [];
 			this.actor = _fn;
-			if (!!__me && __me.length > 0){
+			if (!!__me && __me.length){
 				this.listeners = distinct(this.listeners.concat(__me));
 			}
 		}
@@ -324,20 +356,6 @@
 		return _me;
 	}
 	fn.bind = bind;
-	
-	//扩展数组原型方法
-	function contains(o){
-		return arrProto.indexOf.call(this, o) >= 0;
-	}
-	if (!arrProto.contains)
-		Array.prototype.contains = contains;
-	
-	function remove(delegate){
-		var arr = this, index = [];
-		if (isFunction(delegate)){
-			arrProto.splice
-		} 
-	}
 	
 	/*
 	** 触发订阅事件
@@ -371,10 +389,16 @@
 	** @return 被注销掉的对象(class:Array)
 	*/
 	function unbind(_me, _id){
+		if (_id === undefined){
+			_id = _me;
+			_me = "all";
+		}
 		var e = EVENTCENTER[_id];
 		if (!e) return;
 		if (!isArray(_me))
 			_me = [].concat(_me);
+		else if ('all' === _me)
+			return e.listeners.splice(0);
 		return arrProto.filter.call(_me, function(d){
 			var idx = arrProto.indexOf.call(e.listeners, d);
 			if (idx >= 0){
@@ -437,18 +461,209 @@
 	}
 	fn.flatten = flatten;
 
+	function each(arr, action, ctx){
+		if (arrProto.forEach) {
+			arrProto.forEach.apply(arr, [action, ctx]);
+		}else{
+			for (var i = 0; i<arr.length;++i){
+				action.apply(ctx, [arr[i], i, arr]);
+			}
+		}
+		return arr;
+	}
+	fn.each = each;
+	if (!arrProto.forEach){
+		arrProto.forEach = function(action, ctx){
+			return each.apply(null, [this, action, ctx]);
+		}
+	}
 	
-	lp_libs.prototype = fn;
+	function filter(arr, where, ctx) {
+		if (arrProto.filter) {
+			return arrProto.filter.apply(arr, [where, ctx]);
+		} else {
+			var res = [];
+			for (var i = 0; i < arr.length; ++i) {
+				where.apply(ctx, [arr[i], i, arr]) === true && res.push(arr[i]);
+			}
+			return res;
+		}
+	}
+	if (!arrProto.filter){
+		arrProto.filter = function(where, ctx){
+			return filter.apply(null, [this,where,ctx]);
+		}
+	}
+	fn.filter = filter;
+
+	/**
+	 * 包含有t 则返回true
+	 */
+	function contains(arr,t,isSorted){
+		return indexOf(arr, t, isSorted) > -1;
+	}
+	
+	function indexOf (arr,t,isSorted){
+		if (arrProto.indexOf && false){
+			return arrProto.indexOf.apply(arr,[t]);
+		} else{    //二分查找
+			if (!isSorted){
+				var d;
+				for (var i = -1; d = arr[++i];){
+					if (d === t) return i;
+				}
+			} else{
+				var p = 0, q = arr.length, k = q >> 1, d = arr[k];
+				while(d !== t){
+					if (d < t){
+                        p = k + 1;
+                    }else{
+                        q = k - 1;
+                    }
+                    if (p > q) return - 1;
+                    k = (q + p) >> 1;
+                    d = arr[k];
+				}
+				return k;
+			}
+		}
+	}
+	
+	if (!arrProto.contains){
+		Array.prototype.contains = function(t){
+			contains.apply(null, [this, t]);
+		};
+	}
+	fn.contains = contains;
+    fn.indexOf = indexOf;
+	
+	/**
+	 * 按where条件移除数组中的元素
+	 */
+	function remove(arr, where, ctx){
+		for(var i = 0;i<=arr.length-1;i++){
+			if (where.call(ctx, arr[i], i, arr)){
+				arr.splice(i--,1);
+			}
+		}
+		return arr;
+	}
+	fn.remove = remove;
+	if (!arrProto.remove){
+		Array.prototype.remove = function(where, ctx){
+			remove.apply(null, [this, where, ctx]);
+		}
+	}
+	
+	var math = {};
+    /**
+     * @param  {Number} v 值
+     * @param  {Number} fix 有效小数位 默认为2
+	 * @return {String} Percentage
+     */
+	math.toPercent = function (v, fix) {
+		var _fix = fix === undefined ? 2 : fix;
+		return isNaN(v) ? console.error('Invalid Number Type.') || null : Math.round(v * 100).toFixed(_fix);
+	}
+    /**
+     * @param  {Number} minV
+     * @param  {Number} maxV
+     * @param  {Number} fix
+	 * @return {String} result
+     */
+	math.rnd = function (minV,maxV,fix){
+		var _fix = fix === undefined ? 0 : fix;
+		return (Math.random() * (maxV-minV) + minV).toFixed(_fix); 
+	}
+	fn.math = math;
+	
+    /**
+     * @param  {Number | String} args
+	 * @return {Date}
+     */
+	function parseDate(args){
+		if (getType(args) === 'string'){
+			return _parseDateFromString(args);
+		}
+		if (getType(args) === 'number') return new Date(args);
+		if (getType(args) === 'date') return args;
+		function _parseDateFromString(_str){
+			var _regxDate = /^(\d{2,4})\D(\d{1,2})\D(\d{1,2})/i,
+				_regxTime = /(\d{1,2})[:时h](\d{1,2})[:分m](\d{1,2})[秒s]{0,1}$/i,
+				_mcDate = _regxDate.exec(_str),
+				_mcTime = _regxTime.exec(_str);
+				var year = 0, month = 0, date = 0, hours = 0, minutes = 0, seconds = 0, ret = null;
+			if (_mcDate && _mcDate.length){
+				year = parseInt(_mcDate[1]), month = parseInt(_mcDate[2]), date = parseInt(_mcDate[3]);
+				ret = new Date(year, month, date);
+			}
+			if (_mcTime && _mcTime.length){
+				hours = parseInt(_mcTime[1]), minutes = parseInt(_mcTime[2]), seconds = parseInt(_mcTime[3]);
+				ret.setHours(hours), ret.setMinutes(minutes), ret.setSeconds(seconds);
+			}
+			return ret;
+		}
+	}
+    
+    //生成get set方法
+    fn.defineProps = function(o, opts){
+        var _v, s, g;
+        opts.forEach(function(d,i){
+            _v = o[d.name];
+            s = function(v){
+                if (d.setter.apply(o, [v, _v])){
+                    o[d.name] = v;
+                }
+                return o;
+            };
+            g = function(){
+                if (d.getter) {
+                    d.getter.apply(o);
+                }
+                return _v;
+            }
+            o['set' + d.name] = s;
+            o['get' + d.name] = g;
+        });
+        return o;
+    }
+    
+    //获得性能
+    fn.traceFn = function(f){
+        var sTime, eTime;
+        return function(){
+            sTime = new Date();
+            var res = f();
+            eTime = new Date();
+            return {startTime: sTime.valueOf(), endTime: eTime.valueOf(), spanTime: (eTime.valueOf() - sTime.valueOf()), result: res};
+        }
+    }
+    
+    fn.json = {
+        replacer: {}
+    }
+    fn.json.replacer['function'] = function(key, value){
+        if (!key) return value;
+        if ((typeof value).toLowerCase() === 'function'){
+            return toString.call(value);
+        }
+        if ((typeof value) === 'object'){
+            var props = Object.getOwnPropertyNames(value), prop;
+            for (prop in props){
+                if ((typeof value[prop]).toLowerCase() === "function"){
+                    value[prop] = value[prop].toString();
+                }
+            }
+        }
+    }
+    
+	LP_libs.prototype = fn;
 	if (typeof define === 'function' && define.amd){
 		define(function(){
-			return new lp_libs();
+			return new LP_libs();
 		});
-	} else if(typeof module === 'object' && module.exports) module.exports = lp_libs;
+	} else if(typeof module === 'object' && module.exports) module.exports = new LP_libs();
 	else {
-		globe.lp = _lp ? _lp: globe.lpegasus = new lp_libs();
+		globe.lp = _lp ? _lp: globe.lpegasus = new LP_libs();
 	}
-}();
-
-/*
-
- */
+} ();
