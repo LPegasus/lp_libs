@@ -33,6 +33,9 @@
                 return res;
             }
         },
+        /**
+         * 返回带缓存的方法
+         */
         memo: function (fn) {
             var c = {};
             return function () {
@@ -50,12 +53,22 @@
                 return cprop in c ? c[cprop] : c[cprop] = fn.apply(this, args);
             }
         },
+        /**
+         * 深度复制
+         */
         copyObject: function (tar) {
             return utilFn.extend({}, tar);
         },
+        /**
+         * 执行委托获取值
+         */
         fn2Value: function (f, ctx) {
             return (typeof f).toLowerCase() === 'function' ? f.apply(ctx, ArrProto.slice.call(arguments, 2)) : f;
         },
+        /**
+         * 获取对象的叶子属性的访问路径
+         * @return Array[path1[,path2[,path3[,...]]]]
+         */
         flattenObjAttr: function (obj, prefix, res) {
             var props, prop, i;
             res = res || [];
@@ -70,15 +83,22 @@
             }
             return res;
         },
+        /**
+         * 获取数组中的其中一段连续元素
+         */
         subArray: function (arr, start, end) {
             return arr.filter(function (d, i) {
                 return i >= start && i <= end;
             });
         },
+        /**
+         * 获取对象的属性值 （用来获取扁平化以后的叶子值，以【.】开头）
+         */
         getAttrByPath: function (obj, path) {
             var props = path.split('.').slice(1), curObj = obj, i = -1;
             if (!props.length) return { path: path, value: undefined };
             while (curObj = curObj[props[++i]]) { }
+            if (i + 1 < props.length) return {path: path, value: undefined};
             return { path: path, value: eval('obj.' + utilFn.subArray(props, 0, i).join('.')) };
         }
     }
@@ -86,7 +106,7 @@
 
     function VM(opts) {
         var _vm = this;
-        var $skipArray = ['$watchCenter', '$id', '$range', '$watch', '$unwatch', '$skipArray', '$expr', '$leaves'],//不追踪
+        var $skipArray = ['$watchCenter', '$id', '$range', '$watch', '$unwatch', '$skipArray', '$expr', '$leaves', '$delegateCenter'],//不追踪
             props = Object.getOwnPropertyNames(opts);
             
         //以$开头的默认忽略追踪
@@ -97,7 +117,7 @@
         if (opts['skipArray'] && opts['skipArray'].length > 0) {
             $skipArray = $skipArray.concat(opts['skipArray']);
         }
-
+        
         props.forEach(function (name) {
             if ($skipArray.indexOf(name) == -1) {
                 if (name === 'range') {
@@ -106,8 +126,11 @@
                 _vm[name] = opts[name];
             }
         });
-
-        this.$watchCenter = {};
+        this.$specifiedWatchCenter = {};    //单独以$watch添加的回调函数
+        this.$specifiedWatchCenter.$bind = function(_path, _fn){
+            this[_path] = _fn;
+        }
+        this.$watchCenter = {};             //内部回调
         this.$watchCenter.$bind = function (_prop, _fn) {
             if (!this[_prop]) this[_prop] = [];
             this[_prop].push(_fn);
@@ -218,6 +241,7 @@
             
             //通过tokens创建回调函数
             var funcString = '', needUpdateProps = [];//这些数据更新时，需要更新对应DOM
+            //表达式所需的变量
             var funcVar = "var" + props.filter(function (d) {
                 return _vm.$skipArray.indexOf(d) < 0;
             }).reduce(function (prev, curv, i) {
@@ -245,7 +269,10 @@
             needUpdateProps.filter(function (d, i, arr) {//去重复
                 return arr.slice(i + 1).indexOf(d) == -1;
             }).forEach(function (d) {
-                watchCenter.$bind(d, Function('_node', funcVar + '_node.data = ' + funcString.substring(1) + ";").bind(_vm, node));
+                if (typeof _vm[d]==='function'){
+                    
+                }else
+                    watchCenter.$bind(d, Function('_node', funcVar + '_node.data = ' + funcString.substring(1) + ";").bind(_vm, node));
             });
 
         }
@@ -296,15 +323,29 @@
         }
     }
 
-    VM.prototype.$unwatch = function (item) {
-        ObjProto.hasOwnProperty(item) && this.$skipArray.push(item);
+    /**
+     * @param  {string} 属性访问路径
+     */
+    VM.prototype.$unwatch = function (xpath) {
+        if (utilFn.getAttrByPath(this, xpath).value === undefined){
+            console.warn('No such property in VM.');
+            return this;
+        }
+        this.$skipArray.push(xpath);
         return this;
     }
 
-    VM.prototype.$watch = function (propname, callback) {
-        var _fn = callback.bind(this);
-        if (!this.$watchCenter[propname]) this.$watchCenter[propname] = [];
-        this.$watchCenter[propname].push(_fn);
+    /**
+     * @param  {string} 属性访问路径
+     * @param  {function} callback
+     */
+    VM.prototype.$watch = function (xpath, callback) {
+        var _fn, idx;
+        if ((idx = this.$skipArray.indexOf(xpath)) >= 0) this.$skipArray.splice(idx, 1);
+        if (typeof callback === 'function') {
+             _fn = callback.bind(this);
+            this.$specifiedWatchCenter[xpath] = callback;
+        }
         return this;
     }
 
@@ -342,12 +383,19 @@
                     return this.new;
                 }.bind(_modelValue[prop]),
                 set: function (v) {
+                    //若在忽略列表中，则不跟新；
+                    if (vm.$skipArray.filter(function(d){return prop===d;}).length > 0){
+                        return;
+                    }
                     this.old = this.new;
                     this.new = v;
                     if (watchCenter[prop.substring(1)] && watchCenter[prop.substring(1)].length) {
                         watchCenter[prop.substring(1)].forEach(function (_fn) {
                             _fn();
                         });
+                    }
+                    if (typeof vm.$specifiedWatchCenter[prop] === 'function'){
+                        vm.$specifiedWatchCenter[prop].apply(vm, [this.new, this.old]);
                     }
                 }.bind(_modelValue[prop]),
                 enumerable: true,
