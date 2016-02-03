@@ -14,6 +14,45 @@
         if (vmContainers[_vm.$id]) { console.warn(_vm.$id + " already exists."); return false; }
         else { vmContainers[_vm.$id] = _vm; return _vm; }
     }
+
+    var FuncFactory = {
+        events: {},
+        //后去新的事件实例
+        createEvent: function (xpath, isOnly) {
+            var _this = this;
+            function NewEvent() {
+                if (_this.events[xpath]) _this.removeEvent(xpath);
+                _this.removeEvent(xpath);
+                this.isOnly = !!isOnly;
+                this.callbackList = [];
+                _this.events[xpath] = this;
+            }
+            NewEvent.prototype.reg = _this.reg.bind(_this, [xpath]);
+            NewEvent.prototype.exec = _this.exec.bind(_this, [xpath]);
+            return new NewEvent();
+        },
+        removeEvent: function (xpath) {
+            if (this.events[xpath])
+                delete this.events[xpath];
+        },
+        //tag用来区分回调函数返回的值
+        reg: function (xpath, fn, tag) {
+            if (typeof fn !== 'function') return;
+            if (!this.events[xpath] || this.events[xpath].isOnly) this.createEvent(xpath);
+            this.events[xpath].callbackList.push({tag: tag, fn: fn});
+            return this.events[xpath];
+        },
+        //执行
+        exec: function (xpath) {
+            if (this.events[xpath] && this.events[xpath].callbackList.length) {
+                return this.events[xpath].callbackList.map(function (d, i) {
+                    return {tag: d.tag, res: d.fn()};
+                }).filter(function(d){
+                    return d.tag !== undefined;
+                });
+            }
+        }
+    }
     
     //存放基本方法
     var utilFn = {
@@ -96,9 +135,9 @@
          */
         getAttrByPath: function (obj, path) {
             var props = path.split('.').slice(1), curObj = obj, i = -1;
-            if (!props.length) return { path: path, value: undefined };
+            if (!props.length) return { path: path, value: curObj };
             while (curObj = curObj[props[++i]]) { }
-            if (i + 1 < props.length) return {path: path, value: undefined};
+            if (i + 1 < props.length) return { path: path, value: undefined };
             return { path: path, value: eval('obj.' + utilFn.subArray(props, 0, i).join('.')) };
         }
     }
@@ -117,7 +156,7 @@
         if (opts['skipArray'] && opts['skipArray'].length > 0) {
             $skipArray = $skipArray.concat(opts['skipArray']);
         }
-        
+
         props.forEach(function (name) {
             if ($skipArray.indexOf(name) == -1) {
                 if (name === 'range') {
@@ -127,7 +166,7 @@
             }
         });
         this.$specifiedWatchCenter = {};    //单独以$watch添加的回调函数
-        this.$specifiedWatchCenter.$bind = function(_path, _fn){
+        this.$specifiedWatchCenter.$bind = function (_path, _fn) {
             this[_path] = _fn;
         }
         this.$watchCenter = {};             //内部回调
@@ -269,9 +308,13 @@
             needUpdateProps.filter(function (d, i, arr) {//去重复
                 return arr.slice(i + 1).indexOf(d) == -1;
             }).forEach(function (d) {
-                if (typeof _vm[d]==='function'){
-                    
-                }else
+                if (typeof _vm[d] === 'function') {
+                    var _fn_ = _vm[d];
+                    _vm[d] = function(){
+                        node.data = _fn_.apply(_vm);
+                    }
+                    node.data = '';
+                } else
                     watchCenter.$bind(d, Function('_node', funcVar + '_node.data = ' + funcString.substring(1) + ";").bind(_vm, node));
             });
 
@@ -327,7 +370,7 @@
      * @param  {string} 属性访问路径
      */
     VM.prototype.$unwatch = function (xpath) {
-        if (utilFn.getAttrByPath(this, xpath).value === undefined){
+        if (utilFn.getAttrByPath(this, xpath).value === undefined) {
             console.warn('No such property in VM.');
             return this;
         }
@@ -343,9 +386,10 @@
         var _fn, idx;
         if ((idx = this.$skipArray.indexOf(xpath)) >= 0) this.$skipArray.splice(idx, 1);
         if (typeof callback === 'function') {
-             _fn = callback.bind(this);
+            _fn = callback.bind(this);
             this.$specifiedWatchCenter[xpath] = callback;
         }
+        callback.apply(this,[]);
         return this;
     }
 
@@ -366,9 +410,9 @@
      * @return void
      */
     function initViewUpdate(_vm) {
-        var i = 0, prop/*property全名*/, fatherProp/*原子属性的父节点名称*/, fatherObj/*原子属性父节点对象*/, _modelValue ={}/*存放数据*/;
+        var i = 0, prop/*property全名*/, fatherProp/*原子属性的父节点名称*/, fatherObj/*原子属性父节点对象*/, _modelValue = {}/*存放数据*/;
         for (; prop = _vm.$leaves[i++];) {
-            _modelValue[prop] = {new: eval('_vm' + prop)};
+            _modelValue[prop] = { new: eval('_vm' + prop) };
             _modelValue[prop].old = _modelValue[prop].new;
             fatherProp = prop.substring(0, prop.lastIndexOf('.')) || '';//获取父对象的property路径
             fatherObj = utilFn.getAttrByPath(_vm, fatherProp);
@@ -384,7 +428,7 @@
                 }.bind(_modelValue[prop]),
                 set: function (v) {
                     //若在忽略列表中，则不跟新；
-                    if (vm.$skipArray.filter(function(d){return prop===d;}).length > 0){
+                    if (vm.$skipArray.filter(function (d) { return prop === d; }).length > 0) {
                         return;
                     }
                     this.old = this.new;
@@ -394,7 +438,7 @@
                             _fn();
                         });
                     }
-                    if (typeof vm.$specifiedWatchCenter[prop] === 'function'){
+                    if (typeof vm.$specifiedWatchCenter[prop] === 'function') {
                         vm.$specifiedWatchCenter[prop].apply(vm, [this.new, this.old]);
                     }
                 }.bind(_modelValue[prop]),
