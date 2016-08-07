@@ -1,0 +1,27 @@
+{
+  "name": "lp_libs",
+  "version": "1.0.0",
+  "description": "utils",
+  "main": "lp_libs.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/LPegasus/lp_libs.git"
+  },
+  "author": "LPegasus",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/LPegasus/lp_libs/issues"
+  },
+  "homepage": "https://github.com/LPegasus/lp_libs#readme",
+  "devDependencies": {
+    "babel-core": "^6.13.2",
+    "babel-loader": "^6.2.4",
+    "babel-preset-es2015": "^6.13.2",
+    "eslint": "^3.2.2",
+    "eslint-config-airbnb": "^10.0.0",
+    "webpack": "^1.13.1"
+  }
+}

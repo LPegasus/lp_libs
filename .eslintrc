@@ -1,0 +1,9 @@
+{
+  "extends": ["eslint-config-airbnb"],
+  "parserOptions": {
+    "ecmaVersion": 5,
+    "sourceType": "module"
+  },
+  "rules": {
+  }
+}
