@@ -1,5 +1,4 @@
 'use strict'
-function noop() { };
 function dispatcher(...args) {
   let i = 0; const len = args.length;
   const evts = {};
@@ -8,7 +7,8 @@ function dispatcher(...args) {
       args[i] :
       typeof args[i] === 'function' ? evts[args[i]()] : false;
     if(!evtname) throw new Error('Invalid parameters');
-    evts[evtname] = noop;
+    evts[evtname] = function() {};
+    evts[evtname].$evts = {};
   }
   return new Dispatcher(evts);
 }
@@ -19,7 +19,7 @@ function Dispatcher(e) {
       writable: true, enumerable: false, configurable: false, value: e
     },
     $unreg: {
-      writable: false, enumerable: false, configurable: false, value: []
+      writable: true, enumerable: false, configurable: false, value: []
     }
   });
 }
@@ -39,28 +39,43 @@ dispatcher.prototype = Dispatcher.prototype = {
     else {
       let i = 1;
       let parent = this.$evts[names[0]];
+      let curname;
       while(curname = names[i++]) {
         if (!names[i]) {
-          this.$unreg(register(parent, func, curname));
+          this.$unreg.push(register(parent, func, curname));
           break;
         }
-        parent.$evts = {};
-        parent = parent[curname];
+        if (!parent.$evts[curname]) {
+          parent.$evts[curname] = function() {};
+          parent.$evts[curname].$evts = {};
+        }
+        parent = parent.$evts[curname];
       }
     }
   },
   call: function(type, ctx, ...args) {
     const funcs = getFunc(this, type);
+    funcs.forEach((f) => f.call(ctx, ...args));
+  },
+  apply: function(type, ctx, args) {
+    const funcs = getFunc(this, type);
+    funcs.forEach((f) => f.apply(ctx, args));
   },
   distroy: function(undefined) {
     this.$unreg.forEach((d) => d());
-    this = undefined;
+    this.$evts = undefined;
+    this.$unreg = undefined;
   }
 }
 
 function register(obj, func, name) {
+  let _;
   if (!obj.$evts) obj.$evts = {};
+  else if (obj.$evts[name] && obj.$evts[name].$evts) {
+    _ = obj.$evts[name].$evts;
+  }
   obj.$evts[name] = func;
+  obj.$evts[name].$evts = _ || {};
   return () => {
     obj.$evts[name] === undefined;
   }
@@ -72,7 +87,7 @@ function getFunc(obj, type) {
   let cur = obj;
   let curname;
   while(curname = names[i++]) {
-    cur = cur[curname];
+    cur = cur.$evts[curname];
     if (!typeof cur === 'function') return [];
   }
   const res = [cur];
@@ -80,6 +95,7 @@ function getFunc(obj, type) {
   return res;
 
   function appendChildrenFunc(parent, res) {
+    if (!parent) return;
     const keys = Object.keys(parent);
     keys.forEach(key => {
       if (typeof parent[key] === 'function') { 
