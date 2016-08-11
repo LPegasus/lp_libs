@@ -88,7 +88,6 @@ function getFunc(obj, type) {
   let curname;
   while(curname = names[i++]) {
     cur = cur.$evts[curname];
-    if (!typeof cur === 'function') return [];
   }
   const res = [cur];
   appendChildrenFunc(cur.$evts, res);

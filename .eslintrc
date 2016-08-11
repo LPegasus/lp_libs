@@ -1,9 +1,10 @@
 {
-  "extends": ["eslint-config-airbnb"],
+  "extends": "eslint:recommended",
   "parserOptions": {
     "ecmaVersion": 5,
     "sourceType": "module"
   },
   "rules": {
+    "no-cond-assign": "off"
   }
 }
