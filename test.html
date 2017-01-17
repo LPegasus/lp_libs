@@ -1,0 +1,107 @@
+<!DOCTYPE>
+
+<head>
+  <title>ubt</title>
+</head>
+
+<body>
+  <script type="text/javascript">
+    var canvas = document.createElement('canvas');
+    canvas.width = 600;
+    canvas.height = 30;
+    canvas.style.border = "1px solid #3a3a3a";
+    var strText = "English中文Հայերենا繁體輸入لعربيةҚазақша`~1!2@3#4$5%6^7&8*9(0)-_=+[{]}|;:',<.>/?";
+    var ctx = canvas.getContext("2d");
+    var gr = ctx.createLinearGradient(0, 0, 200, 0);
+    gr.addColorStop(0, "rgb(200,0,0)");
+    gr.addColorStop(.5, "rgb(0,200,0)");
+    gr.addColorStop(1, "rgb(200,0,0)");
+    ctx.fillStyle = gr;
+    ctx.fillRect(0, 0, 200, 30);
+    ctx.fillStyle = "#360";
+    ctx.font = "13px _sans";
+    ctx.textBaseLine = "top";
+    ctx.fillText(strText, 5, 18);
+    ctx.beginPath();
+    ctx.strokeStyle = "blue";
+    ctx.lineWidth = 5;
+    ctx.shadowOffsetX = 2;
+    ctx.shadowOffsetY = 2;
+    ctx.shadowColor = "rgb(85,85,85)";
+    ctx.shadowBlur = 3;
+    ctx.arc(500, 15, 10, 0, Math.PI * 2, true);
+    ctx.stroke();
+    ctx.closePath();
+    document.body.appendChild(canvas);
+    console.log(canvas.toDataURL());
+    glinfo();
+
+    function glinfo () {
+      var canvas = document.createElement("canvas");
+      if (typeof canvas.getContext === "undefined") {
+        return false;
+      } else {
+        var gl = null;
+        var ctxNames = [
+        "webgl",
+        "experimental-webgl",
+        "moz-webgl",
+        "webkit-3d"
+      ];
+      try {
+        for (var i = 0; i < ctxNames.length && gl===null ; i++) {
+          gl = canvas.getContext(
+            ctxNames[i],
+            { width: 600, height: 300 }
+          );
+          if (gl) {
+            break;
+          }
+        }
+        return gl.getParameter(gl.RENDERER) + "," + gl.getParameter(gl.VERSION)
+        } catch (e) {}
+      } return "";
+    }
+
+    function murur_hash (key, seed) {
+      var remainder, bytes, h1, h1b, c1, c2, k1, i;
+      remainder = key.length & 3;
+      bytes = key.length - remainder;
+      h1 = seed || 31;
+      c1 = 3432918353;
+      c2 = 461845907;
+      i = 0;
+      while (i < bytes) {
+          k1 = key.charCodeAt(i) & 255 | (key.charCodeAt(++i) & 255) << 8 | (key.charCodeAt(++i) & 255) << 16 | (key.charCodeAt(++i) & 255) << 24;
+          ++i;
+          k1 = (k1 & 65535) * c1 + (((k1 >>> 16) * c1 & 65535) << 16) & 4294967295;
+          k1 = k1 << 15 | k1 >>> 17;
+          k1 = (k1 & 65535) * c2 + (((k1 >>> 16) * c2 & 65535) << 16) & 4294967295;
+          h1 ^= k1;
+          h1 = h1 << 13 | h1 >>> 19;
+          h1b = (h1 & 65535) * 5 + (((h1 >>> 16) * 5 & 65535) << 16) & 4294967295;
+          h1 = (h1b & 65535) + 27492 + (((h1b >>> 16) + 58964 & 65535) << 16)
+      }
+      k1 = 0;
+      switch (remainder) {
+      case 3:
+          k1 ^= (key.charCodeAt(i + 2) & 255) << 16;
+      case 2:
+          k1 ^= (key.charCodeAt(i + 1) & 255) << 8;
+      case 1:
+          k1 ^= key.charCodeAt(i) & 255;
+          k1 = (k1 & 65535) * c1 + (((k1 >>> 16) * c1 & 65535) << 16) & 4294967295;
+          k1 = k1 << 15 | k1 >>> 17;
+          k1 = (k1 & 65535) * c2 + (((k1 >>> 16) * c2 & 65535) << 16) & 4294967295;
+          h1 ^= k1
+      }
+      h1 ^= key.length;
+      h1 ^= h1 >>> 16;
+      h1 = (h1 & 65535) * 2246822507 + (((h1 >>> 16) * 2246822507 & 65535) << 16) & 4294967295;
+      h1 ^= h1 >>> 13;
+      h1 = (h1 & 65535) * 3266489909 + (((h1 >>> 16) * 3266489909 & 65535) << 16) & 4294967295;
+      h1 ^= h1 >>> 16;
+      return h1 >>> 0
+  }
+  </script>
+</body>
